@@ -1,0 +1,19 @@
+
+config upload 'upload'
+	option default_class 'uclass_3'
+	option monenabled 'false'
+
+config download 'download'
+	option default_class 'dclass_3'
+	option monenabled 'false'
+
+config upload_class 'uclass_3'
+	option name 'Slow'
+	option percent_bandwidth '100'
+	option minRTT 'No'
+
+config download_class 'dclass_3'
+	option name 'Slow'
+	option percent_bandwidth '100'
+	option minRTT 'No'
+

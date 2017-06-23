@@ -1,0 +1,22 @@
+
+config device 'device'
+	option factory 'pifii'
+	option model 'PF'
+
+config SERVER 'server'
+	option url 'http://pf.pifii.com:8081/wifi'
+	option report_id '1'
+
+config ACTIVE 'active'
+	option url 'http://192.168.2.1/cgi-bin/luci/admin/activeH'
+
+config REGISTER 'register'
+
+config CONFINFO 'confinfo'
+	option jsonid '78785cb90'
+	option jsonrpc '2.0'
+
+config GLOBAL  'global'
+	option mode 'route'
+
+config POST 'post'

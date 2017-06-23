@@ -1,0 +1,37 @@
+
+config system
+	option hostname 'tz'
+	option zonename 'Asia/Shanghai'
+	option timezone 'CST-8'
+	option conloglevel '8'
+	option cronloglevel '8'
+
+config timeserver 'ntp'
+	option enabled '1'
+	list server 's2m.time.edu.cn'
+	list server 'ntp.sjtu.edu.cn'
+	list server '2.openwrt.pool.ntp.org'
+	list server '3.openwrt.pool.ntp.org'
+
+config led
+	option trigger 'none'
+	option name 'power'
+	option sysfs 'zbtlink:blue:power'
+	option default '1'
+
+config led
+	option sysfs 'zbtlink:blue:net'
+	option name 'net'
+	option default '1'
+	option trigger 'netdev'
+	option dev 'eth0'
+	option mode 'link tx rx'
+
+config led
+	option name 'wifi'
+	option sysfs 'zbtlink:blue:wifi'
+	option default '1'
+	option trigger 'netdev'
+	option dev 'ra0'
+	option mode 'link tx rx'
+
