@@ -1,6 +1,6 @@
 /***************************************************************************
 
-gcc tcp_hb.c tcp_client.c util.c b64.c -o client -I./jsonx86/out/include/json/  -L./jsonx86/out/lib -ljson
+gcc tcp_hb.c tcp_client.c util.c b64.c tcpsink.c -o client -I./jsonx86/out/include/json/  -L./jsonx86/out/lib -ljson
 export LD_LIBRARY_PATH=./jsonx86/out/lib/:$LD_LIBRARY_PATH
 {  \"Etype\": \"1\",  \"Edata\": {    \"Jsonrpc\": \"\",    \"Id\": \"1\",    \"Params\": \"/sbin/reboot\"  }}"  
  
@@ -10,6 +10,8 @@ export LD_LIBRARY_PATH=./jsonx86/out/lib/:$LD_LIBRARY_PATH
 #include "json.h"
 #include "b64.h"
 
+static char *fc_script = "/usr/sbin/freecwmp";
+static char *fc_script_set_actions = "/tmp/freecwmp_set_action_values.sh";
 #define HOMEPWD "./etc/config/"
 //#define JSPWD  "/usr/lib/js/"
 #define JSPWD "./js/"
@@ -21,9 +23,255 @@ export LD_LIBRARY_PATH=./jsonx86/out/lib/:$LD_LIBRARY_PATH
 #define CommandJson "{\"name\": \"getResponse\",\"version\": \"1.0.0\",\"serialnumber\": \"%s\",\
 				\"keyname\": \"command\",\"packet\": {\"data\": \"%s\"}}"
 #define SetResponse "{\"name\": \"setResponse\",\"version\": \"1.0.0\",\"serialnumber\": \"%s\",\"keyname\": \"config\",\
-					\"packet\": { \"type\": \"ok\" }}"
-
+					\"packet\": {\"data\": \"%s\"}}"
+#define FREE(x)   \
+	do            \
+	{             \
+		free(x);  \
+		x = NULL; \
+	} while (0);
 char deviceMac[] = "112233445566";
+
+int external_get_action(char *action, char *name, char **value)
+{
+	//lfc_log_message(NAME, L_NOTICE, "executing get %s '%s'\n",
+	//		action, name);
+	int pid;
+	int pfds[2];
+	char *c = NULL;
+
+	if (pipe(pfds) < 0)
+		return -1;
+
+	if ((pid = fork()) == -1)
+		goto error;
+
+	if (pid == 0)
+	{
+		/* child */
+
+		const char *argv[8];
+		int i = 0;
+		argv[i++] = "/bin/sh";
+		argv[i++] = "/root/run.sh";
+		argv[i++] = "--newline";
+		argv[i++] = "--value";
+		argv[i++] = "get";
+		argv[i++] = action;
+		argv[i++] = name;
+		argv[i++] = NULL;
+
+		close(pfds[0]);
+		dup2(pfds[1], 1);
+		close(pfds[1]);
+		execvp(argv[0], (char **)argv);
+		exit(ESRCH);
+	}
+	else if (pid < 0)
+		goto error;
+
+	/* parent */
+	close(pfds[1]);
+
+	int status;
+	while (wait(&status) != pid)
+	{
+		printf("waiting for child to exit");
+	}
+
+	char buffer[64];
+	ssize_t rxed;
+	int t;
+
+	*value = NULL;
+	while ((rxed = read(pfds[0], buffer, sizeof(buffer))) > 0)
+	{
+
+		if (*value)
+			t = asprintf(&c, "%s%.*s", *value, (int)rxed, buffer);
+		else
+			t = asprintf(&c, "%.*s", (int)rxed, buffer);
+
+		if (t == -1)
+			goto error;
+
+		free(*value);
+		*value = strdup(c);
+		free(c);
+	}
+
+	if (!(*value))
+	{
+		goto done;
+	}
+
+	if (!strlen(*value))
+	{
+		FREE(*value);
+		goto done;
+	}
+
+	if (rxed < 0)
+		goto error;
+
+done:
+	close(pfds[0]);
+	return 0;
+
+error:
+	free(c);
+	FREE(*value);
+	close(pfds[0]);
+	return -1;
+}
+
+int external_set_action_write(char *action, char *name, char *value)
+{
+
+	FILE *fp;
+
+	if (access(fc_script_set_actions, R_OK | W_OK | X_OK) != -1)
+	{
+		fp = fopen(fc_script_set_actions, "a");
+		if (!fp)
+			return -1;
+	}
+	else
+	{
+		fp = fopen(fc_script_set_actions, "w");
+		if (!fp)
+			return -1;
+
+		fprintf(fp, "#!/bin/sh\n");
+
+		if (chmod(fc_script_set_actions,
+				  strtol("0700", 0, 8)) < 0)
+		{
+			return -1;
+		}
+	}
+
+	fprintf(fp, "/bin/sh %s set %s %s '%s'\n", fc_script, action, name, value);
+
+	fclose(fp);
+
+	return 0;
+}
+
+int external_set_action_execute()
+{
+	int pid = 0;
+	if ((pid = fork()) == -1)
+	{
+		return -1;
+	}
+
+	if (pid == 0)
+	{
+		/* child */
+
+		const char *argv[3];
+		int i = 0;
+		argv[i++] = "/bin/sh";
+		argv[i++] = fc_script_set_actions;
+		argv[i++] = NULL;
+
+		execvp(argv[0], (char **)argv);
+		exit(ESRCH);
+	}
+	else if (pid < 0)
+		return -1;
+
+	/* parent */
+	int status;
+	while (wait(&status) != pid)
+	{
+		printf("waiting for child to exit");
+	}
+
+	// TODO: add some kind of checks
+/*
+	if (remove(fc_script_set_actions) != 0)
+		return -1;
+*/
+	return 0;
+}
+
+int external_download(char *url, char *size)
+{
+	int pid = 0;
+
+	if ((pid = fork()) == -1)
+		return -1;
+
+	if (pid == 0)
+	{
+		/* child */
+
+		const char *argv[8];
+		int i = 0;
+		argv[i++] = "/bin/sh";
+		argv[i++] = fc_script;
+		argv[i++] = "download";
+		argv[i++] = "--url";
+		argv[i++] = url;
+		argv[i++] = "--size";
+		argv[i++] = size;
+		argv[i++] = NULL;
+
+		execvp(argv[0], (char **)argv);
+		exit(ESRCH);
+	}
+	else if (pid < 0)
+		return -1;
+
+	/* parent */
+	int status;
+	while (wait(&status) != pid)
+	{
+		printf("waiting for child to exit");
+	}
+
+	if (WIFEXITED(status) && !WEXITSTATUS(status))
+		return 0;
+	else
+		return 1;
+
+	return 0;
+}
+
+int commandDownload(char *url, char *md5)
+{
+	return 1;
+}
+
+int commandFactoryset()
+{
+	return 1;
+}
+
+int setShellValue(char *value)
+{
+
+	char *c = NULL;
+	if (NULL == value || '\0' == value[0])
+	{
+		if (external_get_action("value", "text", &c))
+			goto error;
+	}
+	else
+	{
+		c = strdup(value);
+	}
+	if (c)
+	{
+
+		FREE(c);
+	}
+	return 0;
+error:
+	return -1;
+}
 
 char *GetValByEtype(json_object *jobj, const char *sname)
 {
@@ -127,26 +375,125 @@ void getFileData(char *msg, char *filename)
 	fclose(pFile); // 关闭文件
 }
 
+int jsonGetConfig(json_object *config)
+{
+	int rc = 0;
+	char tempstr[2048];
+	enum json_type type;
+	json_object *pval = NULL;
+	char *tempVal = NULL;
+	json_object *obj = config;
+
+	int index = 0;
+	memset(tempstr, 0, 2048);
+	char *key;
+	struct json_object *val;
+	for (struct lh_entry *entry = json_object_get_object(obj)->head; entry != NULL;)
+	{
+		if (entry)
+		{
+			key = (char *)entry->k;
+			val = (struct json_object *)entry->v;
+			entry = entry->next;
+		}
+		else
+		{
+			printf("mabi\n");
+		}
+		type = json_object_get_type(pval);
+		switch (type)
+		{
+		case json_type_string:
+			tempVal = json_object_get_string(val);
+			break;
+		default:
+			break;
+		}
+		printf("\t%s:\n", key /*, json_object_to_json_string(val)*/);
+		/*		if (index++ == 0)
+		{
+			sprintf(tempstr, "%s\"%s\":\"%s\"", tempstr, key, tempVal);
+		}
+		else
+		{
+			sprintf(tempstr, "%s,\"%s\":\"%s\"", tempstr, key, tempVal);
+		}
+*/
+	}
+}
+
 int jsonSetConfig(SOCKET s, json_object *config)
 {
 	int rc = 0;
-	char tempstr[1024];
-
-	json_object *pval = NULL;
+	char tempstr[2048];
+	char *tempVal = NULL;
 	enum json_type type;
-	json_object_object_foreach(config, key, val)
-	{
+	int index = 0;
+	json_object *obj = config;
+	memset(tempstr, 0, 2048);
 
-		printf("\t%s:\n", key/*, json_object_to_json_string(val)*/);
-		if (!strcmp(key, "ping_result"))
-		{
-			sprintf(tempstr, SetResponse, deviceMac);
-			rc = send(s, tempstr, sizeof(tempstr), 0);
-			return rc;
-		}
+	if (config == NULL)
+	{
+		printf("jyb test %s\n", config);
+		return;
 	}
 
-	sprintf(tempstr, SetResponse, deviceMac);
+	char *key;
+	struct json_object *val;
+	struct lh_entry *entry = json_object_get_object(obj)->head;
+	for (; entry != NULL;)
+	{
+		printf("ri mabi\n");
+		if (entry)
+		{
+			key = (char *)entry->k;
+			val = (struct json_object *)entry->v;
+			entry = entry->next;
+		}
+		else
+		{
+			printf("mabi\n");
+			break;
+		}
+
+		printf("jiangyibo sfdsfsa mabi\n");
+		type = json_object_get_type(val);
+		switch (type)
+		{
+		case json_type_string:
+			tempVal = json_object_get_string(val);
+			break;
+		default:
+			break;
+		}
+		printf("jyb test %s %s\n", key, tempVal);
+
+
+		if (index++ == 0)
+		{
+			sprintf(tempstr, "\"%s\":\"%s\"", key, tempVal);
+		}
+		else
+		{
+			sprintf(tempstr, "%s,\"%s\":\"%s\"", tempstr, key, tempVal);
+		}
+
+		printf("jiangyibo %s\n", tempstr);
+	
+		
+		if (external_set_action_write("value", key,tempVal ))
+		{
+			external_set_action_execute();
+		}
+
+
+		if(entry==NULL)
+		{
+			break;
+		}	
+	}
+    memset(tempstr,0,1024);
+	sprintf(tempstr, SetResponse, deviceMac,"setok");
 
 	rc = send(s, tempstr, sizeof(tempstr), 0);
 
@@ -183,12 +530,16 @@ char *exeShell(char *comm)
 	return cliBuff;
 }
 
+#define SERVER_IP  "127.0.0.1"
+#define SERVER_TCP_PORT  "8880"
 
 
 int main(int argc, char **argv)
 {
 	fd_set allfd;
 	fd_set readfd;
+	char *server_ip;
+	char *server_port;
 	msg_t msg;
 	char sendmsg[1500];
 	char informRes[1500];
@@ -196,7 +547,7 @@ int main(int argc, char **argv)
 	char infomsg[1500];
 	char recvmsg[1500];
 	struct timeval tv;
-	int  length;
+	int length;
 	SOCKET s;
 	int rc;
 	int heartbeats = 0;
@@ -225,11 +576,22 @@ int main(int argc, char **argv)
 	getFileData(infomsg, "inform.json");
 	getFileData(informRes, "informResponse.json");
 //	getFileData(tempstr, "recv.json");
-
-#if 1
-
+    if(argc >= 3)
+	{
+		server_ip = argv[1];
+		server_port = argv[2];
+	}else{
+		server_ip = SERVER_IP;
+		server_port = SERVER_TCP_PORT;
+	}
 	INIT();
-	s = tcp_client(argv[1], argv[2]);
+begin :
+	s = tcp_client(server_ip, server_port);
+	if(s<0)
+	{
+		sleep(10);
+		goto begin;
+	}
 	FD_ZERO(&allfd);
 	FD_SET(s, &allfd);
 	tv.tv_sec = T1;
@@ -242,30 +604,47 @@ int main(int argc, char **argv)
 		readfd = allfd;
 		rc = select(s + 1, &readfd, NULL, NULL, &tv);
 		if (rc < 0)
-			error(1, errno, "select failure");
+		{
+			error(0, errno, "select failure");
+			goto end;
+		}
 		if (rc == 0) /* timed out */
 		{
 			if (++heartbeats > 13)
-				error(1, 0, "connection dead\n");
+			{
+				error(0, 0, "connection dead\n");
+			}
 			error(0, 0, "sending heartbeat #%d\n", heartbeats);
 			msg.type = htonl(MSG_HEARTBEAT);
 			sprintf(sendmsg, infomsg, deviceMac, commandkey, deviceMac, uptime);
 			rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 			if (rc < 0)
-				error(1, errno, "send failure");
+			{
+				error(0, errno, "send failure");
+				goto end;
+			}
 			tv.tv_sec = T2;
 			continue;
 		}
 		printf("jiangyibo jjj\n");
 		if (!FD_ISSET(s, &readfd))
-			error(1, 0, "select returned invalid socket\n");
-		memset(recvmsg,0,2000);
+		{
+			error(0, 0, "select returned invalid socket\n");
+			goto end;
+		}
+		memset(recvmsg, 0, 2000);
 		rc = recv(s, (char *)recvmsg,
 				  2000, 0);
 		if (rc == 0)
-			error(1, 0, "server terminated\n");
+		{
+			error(0, 0, "server terminated\n");
+			goto end;
+		}
 		if (rc < 0)
-			error(1, errno, "recv failure");
+		{
+			error(0, errno, "recv failure");
+			goto end;
+		}
 		heartbeats = 0;
 		tv.tv_sec = T1;
 
@@ -273,7 +652,7 @@ int main(int argc, char **argv)
 			continue;
 		printf("jiangyibo 888%s\n", recvmsg);
 		new_obj = json_tokener_parse(recvmsg);
-		
+
 		if (is_error(new_obj))
 		{
 			// rc = send(s, ErrorJson, sizeof(ErrorJson), 0);
@@ -328,8 +707,8 @@ int main(int argc, char **argv)
 					param_p1 = GetValByKey(p1_obj, "shellcmd");
 					param_p2 = exeShell(param_p1);
 					length = strlen(param_p2);
-					param_p3 = zstream_b64encode(param_p2,&length);
-					printf("jiangyibo %s\n",param_p3);
+					param_p3 = zstream_b64encode(param_p2, &length);
+					printf("jiangyibo %s\n", param_p3);
 					sprintf(sendmsg, CommandJson, deviceMac, param_p3);
 					free(param_p3);
 					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
@@ -339,13 +718,13 @@ int main(int argc, char **argv)
 					memset(sendmsg, 0, 1500);
 					p1_obj = GetValByEdata(new_obj, "packet");
 					param_p1 = GetValByKey(p1_obj, "shellcmd");
-					printf("jyb test %s\n",param_p1);
+					printf("jyb test %s\n", param_p1);
 					if (param_p1 != NULL)
 					{
 						if (getConfigFile(tempstr, param_p1) != 0)
 						{
 							length = strlen(tempstr);
-					        param_p3 = zstream_b64encode(tempstr,&length);
+							param_p3 = zstream_b64encode(tempstr, &length);
 
 							memset(sendmsg, 0, 1500);
 							sprintf(sendmsg, FileJson, deviceMac, param_p1, param_p3);
@@ -361,23 +740,48 @@ int main(int argc, char **argv)
 				}
 				else
 				{
-					 memset(sendmsg, 0, 1500);
+					memset(sendmsg, 0, 1500);
 					rc = send(s, ErrorJson, sizeof(ErrorJson), 0);
 				}
 			}
 			else if (!strcmp(name, "set"))
 			{
-				p1_obj = GetValByEdata(new_obj, "packet");
-				param_p1 = GetValByKey(p1_obj, "keyname");
-				if (p1_obj != NULL)
+				char *c = NULL;
+
+				command = GetValByEtype(new_obj, "keyname");
+				printf("jiangyibo eeee 333 %s\n", command);
+				if (!strcmp(command, "value"))
 				{
+					p1_obj = json_object_object_get(new_obj, "packet");
 					jsonSetConfig(s, p1_obj);
+					printf("jyb test ok\n");
+			
 				}
-				rc = send(s, ErrorJson, sizeof(ErrorJson), 0);
+				else if (!strcmp(command, "download"))
+				{
+					p1_obj = GetValByEdata(new_obj, "packet");
+					param_p1 = GetValByKey(p1_obj, "url");
+					param_p2 = GetValByKey(p1_obj, "size");
+					commandDownload(param_p1, param_p2);
+				}
+				else if (!strcmp(command, "factory"))
+				{
+					commandFactoryset();
+				}
+				else if (!strcmp(command, "update"))
+				{
+					p1_obj = GetValByEdata(new_obj, "packet");
+					param_p1 = GetValByKey(p1_obj, "url");
+					param_p2 = GetValByKey(p1_obj, "size");
+				}
+				else
+				{
+					rc = send(s, ErrorJson, sizeof(ErrorJson), 0);
+				}
 			}
 			else
 			{
-				memset(sendmsg, 0, 1500);
+
 				rc = send(s, ErrorJson, sizeof(ErrorJson), 0);
 				//发送   的json 错误
 			}
@@ -385,5 +789,9 @@ int main(int argc, char **argv)
 		}
 		/* process message */
 	}
-#endif
+end:
+	close(s);
+	sleep(10);
+   	goto begin;
+
 }

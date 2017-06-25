@@ -70,6 +70,8 @@ func fazhan_ok(mtype string) {
 	addrVe := strings.Split(mtype, " ")
 
 	var result CommandStats
+	var setcomm SetCommandStats
+	var val []byte
 
 	lengthV1 := len(addrVe)
 
@@ -83,7 +85,7 @@ func fazhan_ok(mtype string) {
 
 		addrVe = addrVe[3:]
 
-		if v1 == "set" || v1 == "get" {
+		if v1 == "get" {
 
 			command := strings.Join(addrVe, " ")
 			if v2 == "command" {
@@ -120,7 +122,7 @@ func fazhan_ok(mtype string) {
 					return
 				}
 				result = CommandStats{
-					Name:         "get",
+					Name:         v1,
 					Version:      "1.1.1",
 					Serialnumber: "123456",
 					Keyname:      "file",
@@ -129,19 +131,43 @@ func fazhan_ok(mtype string) {
 						Data:     "ok",
 					},
 				}
-			} else if v2 == "set" {
-				result = CommandStats{
-					Name:         "set",
-					Version:      "1.1.1",
-					Serialnumber: "123456",
-					Keyname:      "wireless",
-				}
 			} else {
 				fmt.Println("error no this command! " + command)
 				return
 			}
 
-			val, _ := json.Marshal(result)
+			val, _ = json.Marshal(result)
+
+			fmt.Println("shuchu shuju ", string(val))
+
+			cn, err := kvvalue[v3]
+			if !err {
+
+				fmt.Println("error no this mac!")
+			} else {
+				_, e1 := cn.Write(val)
+				if e1 == nil {
+
+				} else {
+					cn.Close()
+					delete(kvvalue, v1)
+					fmt.Println("socket close")
+				}
+			}
+		} else if v1 == "set" {
+			command := strings.Join(addrVe, " ")
+			setcomm = SetCommandStats{
+				Name:         v1,
+				Version:      "1.1.1",
+				Serialnumber: "123456",
+				Keyname:      "value",
+				Packet: SetPacketStats{
+					Wireless: command,
+					Data:     "ok",
+				},
+			}
+
+			val, _ := json.Marshal(setcomm)
 
 			fmt.Println("shuchu shuju ", string(val))
 
@@ -171,6 +197,27 @@ func fazhan_ok(mtype string) {
 type PacketStats struct {
 	Shellcmd string `json:"shellcmd"`
 	Data     string `json:"date"`
+}
+
+type SetPacketStats struct {
+	Wireless string `json:"wireless"`
+	Data     string `json:"date"`
+}
+
+type SetCommandStats struct {
+	/*	    "name": "get",
+	"version": "1.0.0",
+	"serialnumber": "%s",
+	"keyname": "wireless",
+	"packet": {
+	    "type": "1"
+	}
+	*/
+	Name         string         `json:"name"`
+	Version      string         `json:"version"`
+	Serialnumber string         `json:"serialnumber"`
+	Keyname      string         `json:"keyname"`
+	Packet       SetPacketStats `json:"packet"`
 }
 
 type CommandStats struct {
@@ -265,6 +312,17 @@ func mac_type_ok(conTcp net.Conn) {
 				decodeBytes, err := base64.StdEncoding.DecodeString(encodeString)
 				if err != nil {
 					log.Fatalln(err)
+				} else {
+					fmt.Println(string(decodeBytes))
+				}
+			} else if name == "setResponse" {
+				pack := js.Get("packet")
+				encodeString := pack.Get("data").MustString()
+				fmt.Println("jyb test:" + encodeString)
+				decodeBytes, err := base64.StdEncoding.DecodeString(encodeString)
+				if err != nil {
+					//log.Fatalln(err)
+					fmt.Println("can't decode-base64")
 				} else {
 					fmt.Println(string(decodeBytes))
 				}
