@@ -20,7 +20,7 @@ char *program_name;
 /* error - print a diagnostic and optionally exit */
 void error( int status, int err, char *fmt, ... )
 {
-        printf("jiangyibo program %s\n");
+        printf("jiangyibo program %s\n",program_name);
         va_list ap;
  
         va_start( ap, fmt );
