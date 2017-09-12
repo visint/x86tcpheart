@@ -9,6 +9,9 @@ export LD_LIBRARY_PATH=./jsonx86/out/lib/:$LD_LIBRARY_PATH
 #include "heartbeat.h"
 #include "json.h"
 #include "b64.h"
+#include <net/if.h> 
+#include <sys/socket.h>
+#include <sys/ioctl.h>
 
 static char *fc_script = "/usr/sbin/freecwmp";
 static char *fc_script_set_actions = "/tmp/freecwmp_set_action_values.sh";
@@ -30,8 +33,31 @@ static char *fc_script_set_actions = "/tmp/freecwmp_set_action_values.sh";
 		free(x);  \
 		x = NULL; \
 	} while (0);
-char deviceMac[] = "112233445566";
+char deviceMac[13];
 
+int get_mac(char *eth0)    //·µ»ØÖµÊÇÊµ¼ÊÐ´Èëchar * macµÄ×Ö·û¸öÊý£¨²»°üÀ¨'\0'£©
+{
+    struct ifreq ifreq;
+    int sock;
+    printf("jiangyibo mac get\n");
+    if ((sock = socket (AF_INET, SOCK_STREAM, 0)) < 0)
+    {
+		snprintf (deviceMac, 13, "112233445566");
+        return -1;
+    }
+    strcpy (ifreq.ifr_name, eth0);    //Currently, only get eth0
+
+    if (ioctl (sock, SIOCGIFHWADDR, &ifreq) < 0)
+    {
+        snprintf (deviceMac, 13, "112233445566");
+        return -1;
+	}
+	snprintf (deviceMac, 13, "112233445566");
+    printf("jiangyibo mac get ok\n");
+	return snprintf (deviceMac, 13, "%02X%02X%02X%02X%02X%02X", (unsigned char) ifreq.ifr_hwaddr.sa_data[0], (unsigned char) ifreq.ifr_hwaddr.sa_data[1],\
+			  (unsigned char) ifreq.ifr_hwaddr.sa_data[2], (unsigned char) ifreq.ifr_hwaddr.sa_data[3], (unsigned char) ifreq.ifr_hwaddr.sa_data[4], \
+			  (unsigned char) ifreq.ifr_hwaddr.sa_data[5]);
+}
 int external_get_action(char *action, char *name, char **value)
 {
 	//lfc_log_message(NAME, L_NOTICE, "executing get %s '%s'\n",
@@ -388,7 +414,8 @@ int jsonGetConfig(json_object *config)
 	memset(tempstr, 0, 2048);
 	char *key;
 	struct json_object *val;
-	for (struct lh_entry *entry = json_object_get_object(obj)->head; entry != NULL;)
+	struct lh_entry *entry;
+	for ( entry = json_object_get_object(obj)->head; entry != NULL;)
 	{
 		if (entry)
 		{
@@ -530,7 +557,7 @@ char *exeShell(char *comm)
 	return cliBuff;
 }
 
-#define SERVER_IP  "127.0.0.1"
+#define SERVER_IP  "113.106.98.92"
 #define SERVER_TCP_PORT  "8880"
 
 
@@ -572,15 +599,22 @@ int main(int argc, char **argv)
 	json_object *new_obj;
 
 	int i;
-
+	
 	getFileData(infomsg, "inform.json");
 	getFileData(informRes, "informResponse.json");
 //	getFileData(tempstr, "recv.json");
     if(argc >= 3)
 	{
+		if(argc==4)
+		{
+		get_mac(argv[3]);
+		}else{
+			get_mac("eth0");
+		}
 		server_ip = argv[1];
 		server_port = argv[2];
 	}else{
+		get_mac("eth0");
 		server_ip = SERVER_IP;
 		server_port = SERVER_TCP_PORT;
 	}
