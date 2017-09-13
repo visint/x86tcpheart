@@ -16,8 +16,8 @@ export LD_LIBRARY_PATH=./jsonx86/out/lib/:$LD_LIBRARY_PATH
 static char *fc_script = "/usr/sbin/freecwmp";
 static char *fc_script_set_actions = "/tmp/freecwmp_set_action_values.sh";
 #define HOMEPWD "./etc/config/"
-//#define JSPWD  "/usr/lib/js/"
-#define JSPWD "./js/"
+#define JSPWD  "/usr/lib/js/"
+//#define JSPWD "./js/"
 #define ErrorJson "{\"name\": \"errorResponse\",\"version\": \"1.0.0\",\"serialnumber\": \"112233445566\",\"error\": \"1\"}"
 #define FileJson "{\"name\": \"getResponse\",\"version\": \"1.0.0\",\"serialnumber\": \"%s\",\
 				\"keyname\": \"file\",\"packet\": {\"path\": \"/etc/config/\",\"filename\": \"%s\",\"data\": \"%s\"}}"

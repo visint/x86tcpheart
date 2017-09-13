@@ -340,7 +340,7 @@ func qidongServer() {
 		if err == nil {
 			fmt.Println("ok!", f1.RemoteAddr().String())
 			//			f1.SetDeadline(time.Second * 5)
-			mac_type_ok(f1)
+		    go	mac_type_ok(f1)
 			//insertKv("1", f1)
 		}
 	}
