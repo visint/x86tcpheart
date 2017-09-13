@@ -676,7 +676,7 @@ begin :
 		}
 		if (rc < 0)
 		{
-			error(0, errno, "recv failure");
+			error(0, 0, "recv failure");
 			goto end;
 		}
 		heartbeats = 0;
