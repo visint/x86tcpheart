@@ -639,7 +639,7 @@ begin :
 		rc = select(s + 1, &readfd, NULL, NULL, &tv);
 		if (rc < 0)
 		{
-			error(0, errno, "select failure");
+			error(0, 0, "select failure");
 			goto end;
 		}
 		if (rc == 0) /* timed out */
@@ -654,7 +654,7 @@ begin :
 			rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 			if (rc < 0)
 			{
-				error(0, errno, "send failure");
+				error(0, 0, "send failure");
 				goto end;
 			}
 			tv.tv_sec = T2;
