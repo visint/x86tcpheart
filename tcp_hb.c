@@ -586,11 +586,11 @@ int main(int argc, char **argv)
 	char *server_ip;
 	char *server_port;
 	msg_t msg;
-	char sendmsg[1500];
+	char sendmsg[4096];
 	char informRes[1500];
 	char tempstr[1500];
 	char infomsg[1500];
-	char recvmsg[1500];
+	char recvmsg[4096];
 	struct timeval tv;
 	int length;
 	SOCKET s;

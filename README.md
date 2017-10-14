@@ -12,8 +12,9 @@ go build TcpServer.go
 112233445566 get command ls
 112233445566 set command 
 
+cp js  /usr/lib/   
 
 客户端使用
-gcc tcp_hb.c tcp_client.c util.c b64.c -o client -I./jsonx86/out/include/json/  -L./jsonx86/out/lib -ljson
-./client 127.0.0.1 8880
+gcc tcp_hb.c tcp_client.c util.c b64.c -o tcpReport -I./jsonx86/out/include/json/  -L./jsonx86/out/lib -ljson
+./tcpReport 127.0.0.1 8880
 
