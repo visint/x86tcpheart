@@ -593,7 +593,7 @@ int main(int argc, char **argv)
 	char recvmsg[4096];
 	struct timeval tv;
 	int length;
-	SOCKET s;
+	SOCKET s,con;
 	int rc;
 	int heartbeats = 0;
 	int cnt = sizeof(msg);
@@ -644,6 +644,14 @@ begin :
 		sleep(10);
 		goto begin;
 	}
+connect:
+        con = tcp_connect(s);
+        if(con<0)
+        {
+                sleep(10);
+                goto connect;
+        }
+
 	FD_ZERO(&allfd);
 	FD_SET(s, &allfd);
 	tv.tv_sec = T1;
