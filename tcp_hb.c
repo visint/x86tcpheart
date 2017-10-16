@@ -644,6 +644,7 @@ begin :
 		sleep(10);
 		goto begin;
 	}
+/*	
 connect:
         con = tcp_connect(s);
         if(con<0)
@@ -651,7 +652,7 @@ connect:
                 sleep(10);
                 goto connect;
         }
-
+*/
 	FD_ZERO(&allfd);
 	FD_SET(s, &allfd);
 	tv.tv_sec = T1;
@@ -692,9 +693,9 @@ connect:
 			error(0, 0, "select returned invalid socket\n");
 			goto end;
 		}
-		memset(recvmsg, 0, 2000);
+		memset(recvmsg, 0, 4096);
 		rc = recv(s, (char *)recvmsg,
-				  2000, 0);
+				  4096, 0);
 		if (rc == 0)
 		{
 			error(0, 0, "server terminated\n");
@@ -708,7 +709,7 @@ connect:
 		heartbeats = 0;
 		tv.tv_sec = T1;
 
-		if (rc > 2000)
+		if (rc > 4096)
 			continue;
 		printf("jiangyibo 888%s\n", recvmsg);
 		new_obj = json_tokener_parse(recvmsg);

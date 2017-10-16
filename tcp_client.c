@@ -13,6 +13,13 @@ SOCKET tcp_client(char *hname, char *sname)
 		error(0, 0, "socket call failed");
 		return -1;
 	}
+	if (connect(s, (struct sockaddr *)&peer, sizeof(peer)))
+        {
+		printf("connect failed %d\n",errno);
+		close(s);
+                // error(0, errno, "connect failed");
+                return -1;
+        }
 
 	return s;
 }
