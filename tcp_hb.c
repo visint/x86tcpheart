@@ -657,8 +657,9 @@ connect:
 	FD_SET(s, &allfd);
 	tv.tv_sec = T1;
 	tv.tv_usec = 0;
+	memset(sendmsg,0,4096);
 	sprintf(sendmsg, infomsg, deviceMac, commandkey, deviceMac, uptime);
-	rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
+	rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 
 	for (;;)
 	{
@@ -677,6 +678,7 @@ connect:
 			}
 			error(0, 0, "sending heartbeat #%d\n", heartbeats);
 			msg.type = htonl(MSG_HEARTBEAT);
+			memset(sendmsg,0,4096);
 			sprintf(sendmsg, infomsg, deviceMac, commandkey, deviceMac, uptime);
 			rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 			if (rc < 0)
@@ -753,17 +755,17 @@ connect:
 					memset(sendmsg, 0, 1024);
 					getFileData(tempstr, "config.json");
 					sprintf(sendmsg, ConfigJson, deviceMac, tempstr);
-					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
+					rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 				}
 				else if (strcmp(command, "inform") == 0)
 				{
 					memset(sendmsg, 0, 1500);
 					sprintf(sendmsg, informRes, deviceMac, "informResponse", deviceMac, uptime);
-					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
+					rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 				}
 				else if (strcmp(command, "command") == 0)
 				{
-					memset(sendmsg, 0, 1024);
+					memset(sendmsg, 0, 4096);
 					p1_obj = GetValByEdata(new_obj, "packet");
 					param_p1 = GetValByKey(p1_obj, "shellcmd");
 					param_p2 = exeShell(param_p1);
@@ -772,7 +774,7 @@ connect:
 					printf("jiangyibo %s\n", param_p3);
 					sprintf(sendmsg, CommandJson, deviceMac, param_p3);
 					free(param_p3);
-					rc = send(s, (char *)sendmsg, sizeof(sendmsg), 0);
+					rc = send(s, (char *)sendmsg, strlen(sendmsg), 0);
 				}
 				else if (strcmp(command, "shellexe") == 0)
 				{
